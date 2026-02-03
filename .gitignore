@@ -60,5 +60,6 @@ Thumbs.db
 # Project specific
 *.csv
 data/
+data_liab/
 *.json
 *.html
