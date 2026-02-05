@@ -85,14 +85,7 @@ python -m src.compare_csv_folders folder_a folder_b --content
 ### Recommended: Full Comparison with All Features
 
 ```bash
-python -m src.compare_csv_folders data/og data/gen \
-  --content \
-  --recursive \
-  --reorder-columns \
-  --numeric-delta 0.0001 \
-  --delimiter ";" \
-  --encoding "utf-8-sig" \
-  --json report.json
+python -m src.compare_csv_folders data/og data/gen --content --recursive --reorder-columns  --numeric-delta 0.0001 --delimiter ";" --encoding "utf-8-sig" --json report.json
 ```
 
 This command:

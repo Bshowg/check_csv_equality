@@ -219,15 +219,17 @@ def compare_csv_content(
     Reports count of differing/missing rows and provides samples.
     
     Important: Files are considered EQUAL if all rows in A exist in B.
-    Extra rows in B that don't exist in A are NOT counted as differences.
-    This implements a subset check: A ⊆ B
+    - Extra rows in B that don't exist in A are NOT counted as differences.
+    - Extra columns in B that don't exist in A are ignored.
+    - This implements a subset check: A ⊆ B (both rows and columns)
 
     Strategy:
       - read both files completely
+      - filter columns in B to only include columns from A (in A's order)
       - sort rows by progressive column ordering (col 0, then col 1, etc.)
       - check if each row in A exists in B (with numeric delta tolerance)
       - report rows from A that are missing or different in B
-      - extra rows in B are ignored
+      - extra rows and columns in B are ignored
     """
     diffs: List[Dict] = []
     differing = 0
@@ -254,26 +256,43 @@ def compare_csv_content(
             pass
         rows_b = list(rb)
     
-    # Reorder columns in B to match A if requested and headers are equal (same set)
-    if reorder_columns and headers_a and headers_b:
+    # Filter columns in B to only include columns present in A (subset comparison)
+    # Also handles reordering to match A's column order
+    column_mapping = []  # Maps A column indices to B column indices
+    if headers_a and headers_b:
         set_a = set(headers_a)
         set_b = set(headers_b)
-        if set_a == set_b and headers_a != headers_b:
-            # Create mapping from B column positions to A column positions
-            reorder_map = [headers_b.index(col) for col in headers_a]
-            # Reorder rows_b according to the mapping
-            reordered_rows_b = []
-            for row in rows_b:
-                reordered_row = [''] * len(headers_a)
-                for new_idx, old_idx in enumerate(reorder_map):
-                    if old_idx < len(row):
-                        reordered_row[new_idx] = row[old_idx]
-                reordered_rows_b.append(reordered_row)
-            rows_b = reordered_rows_b
-            headers_b = headers_a.copy()  # Update headers_b to match order
+        
+        # Check if all columns in A exist in B
+        if not set_a.issubset(set_b):
+            # Some columns in A are missing in B - will be reported as header mismatch
+            # Still try to map what we can
+            for col_a in headers_a:
+                if col_a in headers_b:
+                    column_mapping.append(headers_b.index(col_a))
+                else:
+                    column_mapping.append(None)  # Column not found in B
+        else:
+            # All columns in A exist in B - create mapping
+            column_mapping = [headers_b.index(col_a) for col_a in headers_a]
+        
+        # Extract only the columns from B that exist in A, in A's order
+        filtered_rows_b = []
+        for row in rows_b:
+            filtered_row = []
+            for b_idx in column_mapping:
+                if b_idx is not None and b_idx < len(row):
+                    filtered_row.append(row[b_idx])
+                else:
+                    filtered_row.append('')  # Column missing or no value
+            filtered_rows_b.append(filtered_row)
+        rows_b = filtered_rows_b
+        
+        # Update headers_b to only include columns from A
+        headers_b = headers_a.copy()
     
-    # Determine number of columns for sorting (use max of both)
-    num_cols = max(len(headers_a), len(headers_b)) if (headers_a or headers_b) else 0
+    # Determine number of columns for sorting (use A's column count for subset comparison)
+    num_cols = len(headers_a) if headers_a else 0
     
     # Sort both sets of rows using progressive column ordering
     # Returns list of (original_index, row) tuples
